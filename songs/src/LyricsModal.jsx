@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, ChevronRight, Loader2 } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ChevronsRight, Loader2 } from "lucide-react";
 import { fetchLyricsFromGoogleSheet } from "./GoogleSheetService";
 
 // songs: snapshot (σταθερός πίνακας) των τραγουδιών της ομάδας τη στιγμή ανοίγματος
@@ -60,12 +60,29 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
+  const previousSong = index > 0 ? songs[index - 1] : null;
   const nextSong = !isLast ? songs[index + 1] : null;
+  const nextNextSong = index + 2 < songs.length ? songs[index + 2] : null;
 
   const handleNext = () => {
     if (isLast) return;
     onMarkSung(current.id);
     setIndex((i) => i + 1);
+  };
+
+  // Πάει στο μεθεπόμενο τραγούδι, προσπερνώντας το αμέσως επόμενο (το οποίο
+  // παραμένει ενεργό/μη ειπωμένο στη λίστα). Μαρκάρει ως ειπωμένο μόνο το
+  // τρέχον, ακριβώς όπως κάνει και το "Επόμενο".
+  const handleSkipNext = () => {
+    if (!nextNextSong) return;
+    onMarkSung(current.id);
+    setIndex((i) => i + 2);
+  };
+
+  // Επιστροφή στο προηγούμενο τραγούδι — απλή πλοήγηση, δεν μαρκάρει τίποτα.
+  const handlePrevious = () => {
+    if (!previousSong) return;
+    setIndex((i) => i - 1);
   };
 
   // Το κλείσιμο (X, backdrop, Esc, ή το κουμπί "Κλείσιμο") ΔΕΝ μαρκάρει
@@ -122,7 +139,7 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
           )}
         </div>
 
-        <div className="lyrics-footer">
+        <div className="lyrics-footer lyrics-footer-grid">
           <button className="lyrics-close-btn" onClick={handleClose}>
             <X size={16} /> Κλείσιμο
           </button>
@@ -131,13 +148,37 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
             <div className="lyrics-end-note">Τέλος ομάδας</div>
           ) : (
             <button className="lyrics-next-btn" onClick={handleNext}>
-              <span className="lyrics-next-text">
-                <span className="lyrics-next-label">Επόμενο</span>
-                <span className="lyrics-next-title">{nextSong.title}</span>
+              <span className="lyrics-nav-text">
+                <span className="lyrics-nav-label">Επόμενο</span>
+                <span className="lyrics-nav-title">{nextSong.title}</span>
               </span>
               <ChevronRight size={20} />
             </button>
           )}
+
+          <button
+            className="lyrics-nav-btn lyrics-prev-btn"
+            onClick={handlePrevious}
+            disabled={!previousSong}
+          >
+            <ChevronLeft size={18} />
+            <span className="lyrics-nav-text">
+              <span className="lyrics-nav-label">Προηγούμενο</span>
+              <span className="lyrics-nav-title">{previousSong ? previousSong.title : "—"}</span>
+            </span>
+          </button>
+
+          <button
+            className="lyrics-nav-btn lyrics-skip-btn"
+            onClick={handleSkipNext}
+            disabled={!nextNextSong}
+          >
+            <span className="lyrics-nav-text">
+              <span className="lyrics-nav-label">Μεθεπόμενο</span>
+              <span className="lyrics-nav-title">{nextNextSong ? nextNextSong.title : "—"}</span>
+            </span>
+            <ChevronsRight size={18} />
+          </button>
         </div>
       </div>
     </div>
