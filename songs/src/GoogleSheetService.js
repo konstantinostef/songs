@@ -142,9 +142,9 @@ export function computeGroups(songs, threshold) {
   const byRegion = {};
   const regionOrder = [];
 
+  // Σημείωση: δεν φιλτράρουμε πλέον τα ήδη ειπωμένα τραγούδια — παραμένουν
+  // στη θέση τους μέσα στην ομάδα τους (εμφανίζονται με διαγράμμιση).
   songs.forEach((s) => {
-    if (s.sung) return;
-
     if (!byRegion[s.region]) {
       byRegion[s.region] = {};
       regionOrder.push(s.region);
@@ -157,6 +157,10 @@ export function computeGroups(songs, threshold) {
 
   const result = { groups: {}, regionOrder };
 
+  // Οι συγχωνεύσεις αποφασίζονται με βάση τα ΕΝΕΡΓΑ (μη ειπωμένα) τραγούδια
+  // κάθε ομάδας, ώστε το κατώφλι να αφορά πραγματικά διαθέσιμα τραγούδια.
+  const activeCount = (g) => g.songs.filter((s) => !s.sung).length;
+
   regionOrder.forEach((region) => {
     const danceMap = byRegion[region] || {};
     let list = Object.entries(danceMap).map(([dance, arr]) => ({
@@ -168,8 +172,8 @@ export function computeGroups(songs, threshold) {
     let changed = true;
     while (changed && list.length > 1) {
       changed = false;
-      list.sort((a, b) => a.songs.length - b.songs.length);
-      if (list[0].songs.length < threshold) {
+      list.sort((a, b) => activeCount(a) - activeCount(b));
+      if (activeCount(list[0]) < threshold) {
         const source = list[0];
         const target = list[1];
         target.songs = target.songs.concat(source.songs);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   RefreshCw,
   WifiOff,
@@ -10,15 +10,13 @@ import {
   Sparkles,
   Search,
   Settings,
+  BookOpenText,
 } from "lucide-react";
 
 import Garland from "./Garland";
 import LyricsModal from "./LyricsModal";
 import { fetchSongsFromGoogleSheet, computeGroups } from "./GoogleSheetService";
 import "./PanigyriApp.css";
-
-const CLICK_DELAY = 250;
-const LONG_PRESS_DELAY = 500;
 
 export default function PanigyriApp() {
   const [sheetId, setSheetId] = useState(
@@ -42,11 +40,6 @@ export default function PanigyriApp() {
   // --- Lyrics modal state ---
   const [lyricsSnapshot, setLyricsSnapshot] = useState(null); // array τραγουδιών ομάδας
   const [lyricsStartIndex, setLyricsStartIndex] = useState(0);
-
-  // --- Click/long-press διαχείριση (ανά component, όχι per-row, αρκεί) ---
-  const clickTimerRef = useRef(null);
-  const longPressTimerRef = useRef(null);
-  const longPressTriggeredRef = useRef(false);
 
   useEffect(() => {
     const savedState = localStorage.getItem("active_session_songs");
@@ -142,46 +135,6 @@ export default function PanigyriApp() {
   const closeLyricsModal = () => {
     setLyricsSnapshot(null);
     setLyricsStartIndex(0);
-  };
-
-  // --- Handlers click/double-click/long-press στο song-row ---
-  const handleSongMouseUp = (song) => {
-    if (longPressTriggeredRef.current) {
-      longPressTriggeredRef.current = false;
-      return;
-    }
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-      return; // το πρόλαβε ήδη το onDoubleClick
-    }
-    clickTimerRef.current = setTimeout(() => {
-      toggleSung(song.id);
-      clickTimerRef.current = null;
-    }, CLICK_DELAY);
-  };
-
-  const handleSongDoubleClick = (song, group) => {
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
-    openLyricsForSong(song, group);
-  };
-
-  const handleTouchStart = (song, group) => {
-    longPressTriggeredRef.current = false;
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTriggeredRef.current = true;
-      openLyricsForSong(song, group);
-    }, LONG_PRESS_DELAY);
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
   };
 
   return (
@@ -309,7 +262,9 @@ export default function PanigyriApp() {
                   <div className="group-card" key={g.hostDance}>
                     <div className="group-head">
                       <span className="name">{g.hostDance}</span>
-                      <span className="count">{g.songs.length} τραγούδια</span>
+                      <span className="count">
+                        {g.songs.filter((s) => !s.sung).length} / {g.songs.length} τραγούδια
+                      </span>
                     </div>
                     {g.mergedFrom.length > 0 && (
                       <div className="merged-note">
@@ -317,18 +272,29 @@ export default function PanigyriApp() {
                       </div>
                     )}
                     {g.songs.map((s) => (
-                      <div
-                        className="song-row"
-                        key={s.id}
-                        onMouseUp={() => handleSongMouseUp(s)}
-                        onDoubleClick={() => handleSongDoubleClick(s, g)}
-                        onTouchStart={() => handleTouchStart(s, g)}
-                        onTouchEnd={handleTouchEnd}
-                      >
-                        <span className="title">{s.title}</span>
-                        {s.originTag !== g.hostDance && (
-                          <span className="origin-tag">{s.originTag}</span>
-                        )}
+                      <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
+                        <div className="song-row-info">
+                          <span className="title">{s.title}</span>
+                          {s.originTag !== g.hostDance && (
+                            <span className="origin-tag">{s.originTag}</span>
+                          )}
+                        </div>
+                        <div className="song-row-actions">
+                          <button
+                            className={`song-action-btn sung-btn${s.sung ? " active" : ""}`}
+                            onClick={() => toggleSung(s.id)}
+                          >
+                            <Undo2 size={16} style={{ display: s.sung ? "inline" : "none" }} />
+                            {s.sung ? "Αναίρεση" : "Το 'παμε"}
+                          </button>
+                          <button
+                            className="song-action-btn lyrics-btn"
+                            onClick={() => openLyricsForSong(s, g)}
+                          >
+                            <BookOpenText size={16} />
+                            Στίχοι
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

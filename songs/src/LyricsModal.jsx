@@ -60,14 +60,17 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
+  const nextSong = !isLast ? songs[index + 1] : null;
+
   const handleNext = () => {
     if (isLast) return;
     onMarkSung(current.id);
     setIndex((i) => i + 1);
   };
 
+  // Το κλείσιμο (X, backdrop, Esc, ή το κουμπί "Κλείσιμο") ΔΕΝ μαρκάρει
+  // το τραγούδι ως ειπωμένο — μόνο το "Επόμενο" το κάνει.
   const handleClose = () => {
-    if (current) onMarkSung(current.id);
     onClose();
   };
 
@@ -120,11 +123,19 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
         </div>
 
         <div className="lyrics-footer">
+          <button className="lyrics-close-btn" onClick={handleClose}>
+            <X size={16} /> Κλείσιμο
+          </button>
+
           {isLast ? (
             <div className="lyrics-end-note">Τέλος ομάδας</div>
           ) : (
             <button className="lyrics-next-btn" onClick={handleNext}>
-              Επόμενο <ChevronRight size={16} />
+              <span className="lyrics-next-text">
+                <span className="lyrics-next-label">Επόμενο</span>
+                <span className="lyrics-next-title">{nextSong.title}</span>
+              </span>
+              <ChevronRight size={20} />
             </button>
           )}
         </div>
