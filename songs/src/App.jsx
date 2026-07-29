@@ -124,6 +124,19 @@ export default function PanigyriApp() {
     }
   };
 
+  // --- Πλοήγηση από αποτέλεσμα αναζήτησης στη θέση του τραγουδιού στη λίστα ---
+  const goToSongInList = (songId) => {
+    setSearch("");
+    setTimeout(() => {
+      const el = document.getElementById(`song-${songId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("highlight-flash");
+        setTimeout(() => el.classList.remove("highlight-flash"), 1600);
+      }
+    }, 100);
+  };
+
   // --- Άνοιγμα lyrics modal με ένα snapshot τραγουδιών (ομάδα ή αποτελέσματα αναζήτησης) ---
   const openLyricsForSong = (song, snapshotSongs) => {
     const idx = snapshotSongs.findIndex((s) => s.id === song.id);
@@ -271,7 +284,7 @@ export default function PanigyriApp() {
                       </div>
                     )}
                     {g.songs.map((s) => (
-                      <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
+                      <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id} id={`song-${s.id}`}>
                         <div className="song-row-info">
                           <span className="title">{s.title}</span>
                           {s.originTag !== g.hostDance && (
@@ -323,7 +336,9 @@ export default function PanigyriApp() {
                 {searchResults.map((s) => (
                   <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
                     <div className="song-row-info">
-                      <span className="title">{s.title}</span>
+                      <span className="title title-link" onClick={() => goToSongInList(s.id)}>
+                        {s.title}
+                      </span>
                       <span className="origin-tag">
                         {s.dance} · {s.region}
                       </span>
