@@ -124,11 +124,10 @@ export default function PanigyriApp() {
     }
   };
 
-  // --- Άνοιγμα lyrics modal με snapshot της ομάδας ---
-  const openLyricsForSong = (song, group) => {
-    const snapshot = group.songs; // ήδη ένας νέος array από computeGroups (g.songs.map(...))
-    const idx = snapshot.findIndex((s) => s.id === song.id);
-    setLyricsSnapshot(snapshot);
+  // --- Άνοιγμα lyrics modal με ένα snapshot τραγουδιών (ομάδα ή αποτελέσματα αναζήτησης) ---
+  const openLyricsForSong = (song, snapshotSongs) => {
+    const idx = snapshotSongs.findIndex((s) => s.id === song.id);
+    setLyricsSnapshot(snapshotSongs);
     setLyricsStartIndex(idx >= 0 ? idx : 0);
   };
 
@@ -289,7 +288,7 @@ export default function PanigyriApp() {
                           </button>
                           <button
                             className="song-action-btn lyrics-btn"
-                            onClick={() => openLyricsForSong(s, g)}
+                            onClick={() => openLyricsForSong(s, g.songs)}
                           >
                             <BookOpenText size={16} />
                             Στίχοι
@@ -319,6 +318,35 @@ export default function PanigyriApp() {
               <p className="empty-region">
                 {isSearching ? "Δεν βρέθηκε τραγούδι." : "Κανένα ακόμα."}
               </p>
+            ) : isSearching ? (
+              <div className="group-card">
+                {searchResults.map((s) => (
+                  <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
+                    <div className="song-row-info">
+                      <span className="title">{s.title}</span>
+                      <span className="origin-tag">
+                        {s.dance} · {s.region}
+                      </span>
+                    </div>
+                    <div className="song-row-actions">
+                      <button
+                        className={`song-action-btn sung-btn${s.sung ? " active" : ""}`}
+                        onClick={() => toggleSung(s.id)}
+                      >
+                        <Undo2 size={16} style={{ display: s.sung ? "inline" : "none" }} />
+                        {s.sung ? "Αναίρεση" : "Το 'παμε"}
+                      </button>
+                      <button
+                        className="song-action-btn lyrics-btn"
+                        onClick={() => openLyricsForSong(s, searchResults)}
+                      >
+                        <BookOpenText size={16} />
+                        Στίχοι
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               searchResults.map((s) => (
                 <div
