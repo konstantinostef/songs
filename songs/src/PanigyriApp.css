@@ -267,6 +267,16 @@
   gap: 8px;
   flex: 1;
   min-width: 0;
+  cursor: pointer;
+  padding: 8px 6px;
+  margin: -8px -6px;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.song-row-info:active {
+  background: rgba(240, 180, 41, 0.14);
 }
 
 .song-row .title {
@@ -275,17 +285,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   transition: font-size 0.15s ease, color 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
-.title-link {
+.sung-check {
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
+.origin-tag-link {
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: rgba(240,180,41,0.5);
-  text-underline-offset: 3px;
+  text-underline-offset: 2px;
 }
 
-.title-link:hover {
-  color: var(--gold);
+.origin-tag-link:hover {
+  background: rgba(240,180,41,0.22);
 }
 
 @keyframes highlight-flash {
@@ -325,7 +343,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   padding: 10px 12px;
   font-size: 13px;
   font-weight: 700;
@@ -335,20 +353,12 @@
   white-space: nowrap;
 }
 
-.song-action-btn.sung-btn {
-  background: var(--gold);
-  color: #171833;
-}
-
-.song-action-btn.sung-btn.active {
-  background: transparent;
-  border: 1.5px solid var(--sung);
-  color: var(--sung);
-}
-
 .song-action-btn.lyrics-btn {
   background: var(--ember);
   color: #fff;
+  padding: 16px 20px;
+  font-size: 15px;
+  border-radius: 12px;
 }
 
 .empty-region { 

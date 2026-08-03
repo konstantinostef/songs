@@ -11,6 +11,7 @@ import {
   Search,
   Settings,
   BookOpenText,
+  CheckCircle2,
 } from "lucide-react";
 
 import Garland from "./Garland";
@@ -315,25 +316,21 @@ export default function PanigyriApp() {
                     )}
                     {g.songs.map((s) => (
                       <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id} id={`song-${s.id}`}>
-                        <div className="song-row-info">
-                          <span className="title">{s.title}</span>
+                        <div className="song-row-info" onClick={(e) => handleMarkButtonClick(e, s)}>
+                          <span className="title">
+                            {s.sung && <CheckCircle2 size={14} className="sung-check" />}
+                            {s.title}
+                          </span>
                           {s.originTag !== g.hostDance && (
                             <span className="origin-tag">{s.originTag}</span>
                           )}
                         </div>
                         <div className="song-row-actions">
                           <button
-                            className={`song-action-btn sung-btn${s.sung ? " active" : ""}`}
-                            onClick={(e) => handleMarkButtonClick(e, s)}
-                          >
-                            <Undo2 size={16} style={{ display: s.sung ? "inline" : "none" }} />
-                            {s.sung ? "Αναίρεση" : "Το 'παμε"}
-                          </button>
-                          <button
                             className="song-action-btn lyrics-btn"
                             onClick={() => openLyricsForSong(s, g.songs)}
                           >
-                            <BookOpenText size={16} />
+                            <BookOpenText size={18} />
                             Στίχοι
                           </button>
                         </div>
@@ -365,27 +362,28 @@ export default function PanigyriApp() {
               <div className="group-card">
                 {searchResults.map((s) => (
                   <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
-                    <div className="song-row-info">
-                      <span className="title title-link" onClick={() => goToSongInList(s.id)}>
+                    <div className="song-row-info" onClick={(e) => handleMarkButtonClick(e, s)}>
+                      <span className="title">
+                        {s.sung && <CheckCircle2 size={14} className="sung-check" />}
                         {s.title}
                       </span>
-                      <span className="origin-tag">
+                      <span
+                        className="origin-tag origin-tag-link"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          goToSongInList(s.id);
+                        }}
+                        title="Μετάβαση στη θέση του στη λίστα"
+                      >
                         {s.dance} · {s.region}
                       </span>
                     </div>
                     <div className="song-row-actions">
                       <button
-                        className={`song-action-btn sung-btn${s.sung ? " active" : ""}`}
-                        onClick={(e) => handleMarkButtonClick(e, s)}
-                      >
-                        <Undo2 size={16} style={{ display: s.sung ? "inline" : "none" }} />
-                        {s.sung ? "Αναίρεση" : "Το 'παμε"}
-                      </button>
-                      <button
                         className="song-action-btn lyrics-btn"
                         onClick={() => openLyricsForSong(s, searchResults)}
                       >
-                        <BookOpenText size={16} />
+                        <BookOpenText size={18} />
                         Στίχοι
                       </button>
                     </div>
