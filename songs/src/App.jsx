@@ -112,9 +112,39 @@ export default function PanigyriApp() {
     setSongs((prev) => prev.map((s) => (s.id === id ? { ...s, sung: !s.sung } : s)));
   };
 
+  // Κατά προσέγγιση ύψος μιας γραμμής τραγουδιού, για όταν η πραγματική
+  // γραμμή δεν είναι διαθέσιμη στη σελίδα (π.χ. είναι κρυμμένη σε αναζήτηση).
+  const ROW_SHIFT_FALLBACK = 76;
+
+  // Ολισθαίνει απαλά όλη τη σελίδα προς τα κάτω κατά το ύψος μιας γραμμής,
+  // ώστε τα προηγούμενα τραγούδια να ανέβουν εκτός οθόνης και να μη χρειαστεί
+  // χειροκίνητο scroll από όποιον διαβάζει τη λίστα.
+  const shiftPageDown = (height) => {
+    if (!height) return;
+    requestAnimationFrame(() => {
+      window.scrollBy({ top: height, behavior: "smooth" });
+    });
+  };
+
+  // Κλικ στο κουμπί "Το 'παμε" / "Αναίρεση" πάνω σε μια γραμμή τραγουδιού.
+  // Μαρκάρισμα ως ειπωμένο -> γίνεται η ολίσθηση. Αναίρεση -> όχι.
+  const handleMarkButtonClick = (e, song) => {
+    if (song.sung) {
+      setSongs((prev) => prev.map((s) => (s.id === song.id ? { ...s, sung: false } : s)));
+      return;
+    }
+    const row = e.currentTarget.closest(".song-row");
+    const height = row ? row.getBoundingClientRect().height : 0;
+    setSongs((prev) => prev.map((s) => (s.id === song.id ? { ...s, sung: true } : s)));
+    shiftPageDown(height);
+  };
+
   // Μόνο θέτει sung=true, ποτέ toggle πίσω. Χρησιμοποιείται από το lyrics modal.
   const markSungOnly = (id) => {
+    const el = document.getElementById(`song-${id}`);
+    const height = el ? el.getBoundingClientRect().height : ROW_SHIFT_FALLBACK;
     setSongs((prev) => prev.map((s) => (s.id === id ? { ...s, sung: true } : s)));
+    shiftPageDown(height);
   };
 
   const resetNight = () => {
@@ -294,7 +324,7 @@ export default function PanigyriApp() {
                         <div className="song-row-actions">
                           <button
                             className={`song-action-btn sung-btn${s.sung ? " active" : ""}`}
-                            onClick={() => toggleSung(s.id)}
+                            onClick={(e) => handleMarkButtonClick(e, s)}
                           >
                             <Undo2 size={16} style={{ display: s.sung ? "inline" : "none" }} />
                             {s.sung ? "Αναίρεση" : "Το 'παμε"}
@@ -346,7 +376,7 @@ export default function PanigyriApp() {
                     <div className="song-row-actions">
                       <button
                         className={`song-action-btn sung-btn${s.sung ? " active" : ""}`}
-                        onClick={() => toggleSung(s.id)}
+                        onClick={(e) => handleMarkButtonClick(e, s)}
                       >
                         <Undo2 size={16} style={{ display: s.sung ? "inline" : "none" }} />
                         {s.sung ? "Αναίρεση" : "Το 'παμε"}
