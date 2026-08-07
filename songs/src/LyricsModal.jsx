@@ -101,9 +101,13 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   // (ή "Κλείσιμο" αν είναι το τελευταίο), ώστε ένα μόνο Enter να προχωράει.
   // Space κυκλώνει: Κλείσιμο -> Επόμενο -> Προηγούμενο -> Μεθεπόμενο.
   const HOLD_THRESHOLD_MS = 450;
+  const RELEASE_GAP_MS = 220;
   const pedalCatcherRef = React.useRef(null);
   const pedalHighlightElRef = React.useRef(null);
-  const pedalDownAtRef = React.useRef(null);
+  const pedalBurstActiveRef = React.useRef(false);
+  const pedalHoldFiredRef = React.useRef(false);
+  const pedalHoldTimerRef = React.useRef(null);
+  const pedalReleaseTimerRef = React.useRef(null);
 
   const getModalFocusables = () => {
     const modalEl = document.querySelector(".lyrics-modal");
@@ -148,6 +152,10 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   // Το πεδίο-παγίδα παραμένει πάντα εστιασμένο όσο το modal είναι ανοιχτό.
   useEffect(() => {
     focusPedalCatcher();
+    return () => {
+      if (pedalHoldTimerRef.current) clearTimeout(pedalHoldTimerRef.current);
+      if (pedalReleaseTimerRef.current) clearTimeout(pedalReleaseTimerRef.current);
+    };
   }, []);
 
   // Προεπιλεγμένη επισήμανση: "Επόμενο" (ή "Κλείσιμο" αν είναι το τελευταίο).
@@ -170,8 +178,20 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   const handlePedalCatcherKeyDown = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (e.repeat) return;
-      pedalDownAtRef.current = Date.now();
+      if (pedalReleaseTimerRef.current) {
+        clearTimeout(pedalReleaseTimerRef.current);
+        pedalReleaseTimerRef.current = null;
+      }
+      if (!pedalBurstActiveRef.current) {
+        pedalBurstActiveRef.current = true;
+        pedalHoldFiredRef.current = false;
+        pedalHoldTimerRef.current = setTimeout(() => {
+          if (pedalBurstActiveRef.current && !pedalHoldFiredRef.current) {
+            pedalHoldFiredRef.current = true;
+            stepPedalHighlight("backward");
+          }
+        }, HOLD_THRESHOLD_MS);
+      }
     } else if (e.key === "Enter") {
       e.preventDefault();
     }
@@ -180,10 +200,19 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   const handlePedalCatcherKeyUp = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (pedalDownAtRef.current == null) return;
-      const heldMs = Date.now() - pedalDownAtRef.current;
-      pedalDownAtRef.current = null;
-      stepPedalHighlight(heldMs >= HOLD_THRESHOLD_MS ? "backward" : "forward");
+      if (pedalReleaseTimerRef.current) clearTimeout(pedalReleaseTimerRef.current);
+      pedalReleaseTimerRef.current = setTimeout(() => {
+        pedalBurstActiveRef.current = false;
+        if (pedalHoldTimerRef.current) {
+          clearTimeout(pedalHoldTimerRef.current);
+          pedalHoldTimerRef.current = null;
+        }
+        if (!pedalHoldFiredRef.current) {
+          stepPedalHighlight("forward");
+        }
+        pedalHoldFiredRef.current = false;
+        pedalReleaseTimerRef.current = null;
+      }, RELEASE_GAP_MS);
     } else if (e.key === "Enter") {
       e.preventDefault();
       activatePedalHighlight();

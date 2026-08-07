@@ -195,9 +195,13 @@ export default function PanigyriApp() {
   // κράτημα (>~450ms) -> προηγούμενο στοιχείο.
   // Δεξί πεντάλ (Enter): ενεργοποιεί (κάνει «κλικ») το επισημασμένο στοιχείο.
   const HOLD_THRESHOLD_MS = 450;
+  const RELEASE_GAP_MS = 220;
   const pedalCatcherRef = React.useRef(null);
   const pedalHighlightElRef = React.useRef(null);
-  const pedalDownAtRef = React.useRef(null);
+  const pedalBurstActiveRef = React.useRef(false);
+  const pedalHoldFiredRef = React.useRef(false);
+  const pedalHoldTimerRef = React.useRef(null);
+  const pedalReleaseTimerRef = React.useRef(null);
 
   const getPedalFocusables = () =>
     Array.from(document.querySelectorAll('[data-pt-focusable="true"]'));
@@ -266,8 +270,23 @@ export default function PanigyriApp() {
   const handlePedalCatcherKeyDown = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (e.repeat) return;
-      pedalDownAtRef.current = Date.now();
+      // Νέο "κράτημα" ξεκινά μόνο αν δεν βρισκόμαστε ήδη μέσα σε ένα — τα
+      // ενδιάμεσα keydown/keyup ενός παρατεταμένου πατήματος (που το πεντάλ
+      // στέλνει σαν επαναλαμβανόμενα ζευγάρια) αγνοούνται ως συνέχεια του ίδιου.
+      if (pedalReleaseTimerRef.current) {
+        clearTimeout(pedalReleaseTimerRef.current);
+        pedalReleaseTimerRef.current = null;
+      }
+      if (!pedalBurstActiveRef.current) {
+        pedalBurstActiveRef.current = true;
+        pedalHoldFiredRef.current = false;
+        pedalHoldTimerRef.current = setTimeout(() => {
+          if (pedalBurstActiveRef.current && !pedalHoldFiredRef.current) {
+            pedalHoldFiredRef.current = true;
+            stepPedalHighlight("backward");
+          }
+        }, HOLD_THRESHOLD_MS);
+      }
     } else if (e.key === "Enter") {
       e.preventDefault();
     }
@@ -276,10 +295,21 @@ export default function PanigyriApp() {
   const handlePedalCatcherKeyUp = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (pedalDownAtRef.current == null) return;
-      const heldMs = Date.now() - pedalDownAtRef.current;
-      pedalDownAtRef.current = null;
-      stepPedalHighlight(heldMs >= HOLD_THRESHOLD_MS ? "backward" : "forward");
+      // Δεν ξέρουμε αμέσως αν αυτό ήταν το πραγματικό τέλος του πατήματος ή
+      // απλά ένα ενδιάμεσο keyup μέσα στη ριπή — περιμένουμε λίγο σιωπή.
+      if (pedalReleaseTimerRef.current) clearTimeout(pedalReleaseTimerRef.current);
+      pedalReleaseTimerRef.current = setTimeout(() => {
+        pedalBurstActiveRef.current = false;
+        if (pedalHoldTimerRef.current) {
+          clearTimeout(pedalHoldTimerRef.current);
+          pedalHoldTimerRef.current = null;
+        }
+        if (!pedalHoldFiredRef.current) {
+          stepPedalHighlight("forward");
+        }
+        pedalHoldFiredRef.current = false;
+        pedalReleaseTimerRef.current = null;
+      }, RELEASE_GAP_MS);
     } else if (e.key === "Enter") {
       e.preventDefault();
       activatePedalHighlight();
