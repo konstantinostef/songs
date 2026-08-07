@@ -91,6 +91,42 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
     onClose();
   };
 
+  // --- Πλοήγηση με page turner πεντάλ μέσα στο modal (mode Space / Enter) ---
+  // Προεπιλογή: εστίαση στο "Επόμενο" (ή "Κλείσιμο" αν είναι το τελευταίο),
+  // ώστε ένα μόνο Enter να προχωράει στο επόμενο τραγούδι. Το Space κυκλώνει
+  // στα υπόλοιπα κουμπιά του footer (Κλείσιμο / Προηγούμενο / Μεθεπόμενο).
+  useEffect(() => {
+    const focusDefault = () => {
+      const modalEl = document.querySelector(".lyrics-modal");
+      if (!modalEl) return;
+      const target = modalEl.querySelector(
+        isLast ? ".lyrics-close-btn" : ".lyrics-next-btn"
+      );
+      if (target) target.focus();
+    };
+    const id = requestAnimationFrame(focusDefault);
+    return () => cancelAnimationFrame(id);
+  }, [index, isLast]);
+
+  useEffect(() => {
+    const handlePedalKeyDown = (e) => {
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        const modalEl = document.querySelector(".lyrics-modal");
+        if (!modalEl) return;
+        const focusables = Array.from(
+          modalEl.querySelectorAll('[data-pt-focusable="true"]:not([disabled])')
+        );
+        if (focusables.length === 0) return;
+        const currentIndex = focusables.indexOf(document.activeElement);
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % focusables.length;
+        focusables[nextIndex].focus();
+      }
+    };
+    window.addEventListener("keydown", handlePedalKeyDown);
+    return () => window.removeEventListener("keydown", handlePedalKeyDown);
+  }, []);
+
   if (!current) return null;
 
   return (
@@ -140,7 +176,7 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
         </div>
 
         <div className="lyrics-footer lyrics-footer-grid">
-          <button className="lyrics-close-btn" onClick={handleClose}>
+          <button className="lyrics-close-btn" onClick={handleClose} data-pt-focusable="true">
             <X size={16} /> Κλείσιμο
           </button>
 
