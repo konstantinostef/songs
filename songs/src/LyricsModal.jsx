@@ -86,9 +86,11 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   };
 
   // Το κλείσιμο (X, backdrop, Esc, ή το κουμπί "Κλείσιμο") ΔΕΝ μαρκάρει
-  // το τραγούδι ως ειπωμένο — μόνο το "Επόμενο" το κάνει.
+  // το τραγούδι ως ειπωμένο — μόνο το "Επόμενο" το κάνει. Στέλνουμε πάνω το
+  // id του επόμενου τραγουδιού (ή του τρέχοντος αν ήταν το τελευταίο) ώστε
+  // η λίστα να μπορεί να το επισημάνει για το page turner.
   const handleClose = () => {
-    onClose();
+    onClose(nextSong ? nextSong.id : current.id);
   };
 
   // --- Πλοήγηση με page turner πεντάλ μέσα στο modal (mode Space / Enter) ---
@@ -97,17 +99,18 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   // δεν φτάνει αξιόπιστα τα πλήκτρα Bluetooth σε πολλά tablet browsers),
   // χρησιμοποιούμε ένα αόρατο πεδίο-παγίδα + CSS κλάση για την επισήμανση.
   //
-  // Προεπιλογή σε κάθε άνοιγμα/αλλαγή τραγουδιού: επισήμανση στο "Επόμενο"
-  // (ή "Κλείσιμο" αν είναι το τελευταίο), ώστε ένα μόνο Enter να προχωράει.
-  // Space κυκλώνει: Κλείσιμο -> Επόμενο -> Προηγούμενο -> Μεθεπόμενο.
-  const HOLD_THRESHOLD_MS = 450;
-  const RELEASE_GAP_MS = 220;
+  // 1 κλικ -> βήμα προς την τρέχουσα κατεύθυνση. 2 γρήγορα διαδοχικά κλικ ->
+  // αλλάζει μόνιμα κατεύθυνση + βήμα προς τη νέα. Προεπιλογή σε κάθε
+  // άνοιγμα/αλλαγή τραγουδιού: επισήμανση στο "Επόμενο" (ή "Κλείσιμο" αν
+  // είναι το τελευταίο) και κατεύθυνση "forward".
+  const BURST_GAP_MS = 150;
+  const DOUBLE_TAP_WINDOW_MS = 350;
   const pedalCatcherRef = React.useRef(null);
   const pedalHighlightElRef = React.useRef(null);
+  const pedalDirectionRef = React.useRef("forward");
   const pedalBurstActiveRef = React.useRef(false);
-  const pedalHoldFiredRef = React.useRef(false);
-  const pedalHoldTimerRef = React.useRef(null);
-  const pedalReleaseTimerRef = React.useRef(null);
+  const pedalBurstEndTimerRef = React.useRef(null);
+  const pedalPendingSingleTimerRef = React.useRef(null);
 
   const getModalFocusables = () => {
     const modalEl = document.querySelector(".lyrics-modal");
@@ -149,17 +152,40 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
     if (pedalCatcherRef.current) pedalCatcherRef.current.focus({ preventScroll: true });
   };
 
+  const clearPedalTimers = () => {
+    if (pedalBurstEndTimerRef.current) {
+      clearTimeout(pedalBurstEndTimerRef.current);
+      pedalBurstEndTimerRef.current = null;
+    }
+    if (pedalPendingSingleTimerRef.current) {
+      clearTimeout(pedalPendingSingleTimerRef.current);
+      pedalPendingSingleTimerRef.current = null;
+    }
+  };
+
+  const handlePedalTapComplete = () => {
+    if (pedalPendingSingleTimerRef.current) {
+      clearTimeout(pedalPendingSingleTimerRef.current);
+      pedalPendingSingleTimerRef.current = null;
+      pedalDirectionRef.current = pedalDirectionRef.current === "forward" ? "backward" : "forward";
+      stepPedalHighlight(pedalDirectionRef.current);
+      return;
+    }
+    pedalPendingSingleTimerRef.current = setTimeout(() => {
+      pedalPendingSingleTimerRef.current = null;
+      stepPedalHighlight(pedalDirectionRef.current);
+    }, DOUBLE_TAP_WINDOW_MS);
+  };
+
   // Το πεδίο-παγίδα παραμένει πάντα εστιασμένο όσο το modal είναι ανοιχτό.
   useEffect(() => {
     focusPedalCatcher();
-    return () => {
-      if (pedalHoldTimerRef.current) clearTimeout(pedalHoldTimerRef.current);
-      if (pedalReleaseTimerRef.current) clearTimeout(pedalReleaseTimerRef.current);
-    };
+    return clearPedalTimers;
   }, []);
 
   // Προεπιλεγμένη επισήμανση: "Επόμενο" (ή "Κλείσιμο" αν είναι το τελευταίο).
   useEffect(() => {
+    pedalDirectionRef.current = "forward";
     const id = requestAnimationFrame(() => {
       const list = getModalFocusables();
       const target = list.find((el) =>
@@ -178,20 +204,11 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   const handlePedalCatcherKeyDown = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (pedalReleaseTimerRef.current) {
-        clearTimeout(pedalReleaseTimerRef.current);
-        pedalReleaseTimerRef.current = null;
+      if (pedalBurstEndTimerRef.current) {
+        clearTimeout(pedalBurstEndTimerRef.current);
+        pedalBurstEndTimerRef.current = null;
       }
-      if (!pedalBurstActiveRef.current) {
-        pedalBurstActiveRef.current = true;
-        pedalHoldFiredRef.current = false;
-        pedalHoldTimerRef.current = setTimeout(() => {
-          if (pedalBurstActiveRef.current && !pedalHoldFiredRef.current) {
-            pedalHoldFiredRef.current = true;
-            stepPedalHighlight("backward");
-          }
-        }, HOLD_THRESHOLD_MS);
-      }
+      pedalBurstActiveRef.current = true;
     } else if (e.key === "Enter") {
       e.preventDefault();
     }
@@ -200,19 +217,12 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   const handlePedalCatcherKeyUp = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (pedalReleaseTimerRef.current) clearTimeout(pedalReleaseTimerRef.current);
-      pedalReleaseTimerRef.current = setTimeout(() => {
+      if (pedalBurstEndTimerRef.current) clearTimeout(pedalBurstEndTimerRef.current);
+      pedalBurstEndTimerRef.current = setTimeout(() => {
         pedalBurstActiveRef.current = false;
-        if (pedalHoldTimerRef.current) {
-          clearTimeout(pedalHoldTimerRef.current);
-          pedalHoldTimerRef.current = null;
-        }
-        if (!pedalHoldFiredRef.current) {
-          stepPedalHighlight("forward");
-        }
-        pedalHoldFiredRef.current = false;
-        pedalReleaseTimerRef.current = null;
-      }, RELEASE_GAP_MS);
+        pedalBurstEndTimerRef.current = null;
+        handlePedalTapComplete();
+      }, BURST_GAP_MS);
     } else if (e.key === "Enter") {
       e.preventDefault();
       activatePedalHighlight();

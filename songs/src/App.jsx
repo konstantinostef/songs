@@ -176,9 +176,23 @@ export default function PanigyriApp() {
     setLyricsStartIndex(idx >= 0 ? idx : 0);
   };
 
-  const closeLyricsModal = () => {
+  const closeLyricsModal = (highlightSongId) => {
     setLyricsSnapshot(null);
     setLyricsStartIndex(0);
+    if (highlightSongId != null) {
+      // Περιμένουμε το επόμενο render (η λίστα τραγουδιών) πριν ψάξουμε το DOM.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.querySelector(
+            `[data-pt-song-id="${highlightSongId}"][data-pt-role="title"]`
+          );
+          if (el) {
+            pedalDirectionRef.current = "forward";
+            setPedalHighlight(el);
+          }
+        });
+      });
+    }
   };
 
   // --- Πλοήγηση με page turner πεντάλ (mode Space bar / Enter) ---
@@ -191,17 +205,17 @@ export default function PanigyriApp() {
   // πραγματικό DOM focus) και η ενεργοποίηση καλεί απευθείας το click() του
   // στοιχείου.
   //
-  // Αριστερό πεντάλ (Space): σύντομο πάτημα -> επόμενο στοιχείο, παρατεταμένο
-  // κράτημα (>~450ms) -> προηγούμενο στοιχείο.
-  // Δεξί πεντάλ (Enter): ενεργοποιεί (κάνει «κλικ») το επισημασμένο στοιχείο.
-  const HOLD_THRESHOLD_MS = 450;
-  const RELEASE_GAP_MS = 220;
+  // Αριστερό πεντάλ (Space): 1 κλικ -> βήμα προς την τρέχουσα κατεύθυνση.
+  // 2 γρήγορα διαδοχικά κλικ -> αλλάζει μόνιμα κατεύθυνση (μπρος/πίσω) και
+  // κάνει ένα βήμα προς τη νέα. Δεξί πεντάλ (Enter): ενεργοποιεί το επισημασμένο.
+  const BURST_GAP_MS = 150; // ενώνει γρήγορα διαδοχικά keydown/keyup ενός φυσικού πατήματος σε ένα "tap"
+  const DOUBLE_TAP_WINDOW_MS = 350; // μέγιστο κενό ανάμεσα σε 2 tap ώστε να μετρήσουν ως διπλό κλικ
   const pedalCatcherRef = React.useRef(null);
   const pedalHighlightElRef = React.useRef(null);
+  const pedalDirectionRef = React.useRef("forward");
   const pedalBurstActiveRef = React.useRef(false);
-  const pedalHoldFiredRef = React.useRef(false);
-  const pedalHoldTimerRef = React.useRef(null);
-  const pedalReleaseTimerRef = React.useRef(null);
+  const pedalBurstEndTimerRef = React.useRef(null);
+  const pedalPendingSingleTimerRef = React.useRef(null);
 
   const getPedalFocusables = () =>
     Array.from(document.querySelectorAll('[data-pt-focusable="true"]'));
@@ -247,13 +261,45 @@ export default function PanigyriApp() {
     }
   };
 
+  const clearPedalTimers = () => {
+    if (pedalBurstEndTimerRef.current) {
+      clearTimeout(pedalBurstEndTimerRef.current);
+      pedalBurstEndTimerRef.current = null;
+    }
+    if (pedalPendingSingleTimerRef.current) {
+      clearTimeout(pedalPendingSingleTimerRef.current);
+      pedalPendingSingleTimerRef.current = null;
+    }
+  };
+
+  // Καλείται όταν ένα ολόκληρο φυσικό πάτημα (μαζί με τυχόν εσωτερική
+  // επανάληψη του firmware) έχει πραγματικά ολοκληρωθεί.
+  const handlePedalTapComplete = () => {
+    if (pedalPendingSingleTimerRef.current) {
+      // Υπήρχε ήδη ένα tap σε αναμονή -> αυτό είναι το 2ο: διπλό κλικ.
+      clearTimeout(pedalPendingSingleTimerRef.current);
+      pedalPendingSingleTimerRef.current = null;
+      pedalDirectionRef.current = pedalDirectionRef.current === "forward" ? "backward" : "forward";
+      stepPedalHighlight(pedalDirectionRef.current);
+      return;
+    }
+    // Πρώτο tap -> περίμενε λίγο μήπως ακολουθήσει δεύτερο (διπλό κλικ).
+    pedalPendingSingleTimerRef.current = setTimeout(() => {
+      pedalPendingSingleTimerRef.current = null;
+      stepPedalHighlight(pedalDirectionRef.current);
+    }, DOUBLE_TAP_WINDOW_MS);
+  };
+
   // Κρατάμε το κρυφό πεδίο εστιασμένο όσο η λειτουργία είναι ενεργή.
   useEffect(() => {
     if (!pedalModeOn) {
       setPedalHighlight(null);
+      pedalDirectionRef.current = "forward";
+      clearPedalTimers();
       return;
     }
     focusPedalCatcher();
+    return clearPedalTimers;
   }, [pedalModeOn]);
 
   const handlePedalCatcherBlur = (e) => {
@@ -270,23 +316,11 @@ export default function PanigyriApp() {
   const handlePedalCatcherKeyDown = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      // Νέο "κράτημα" ξεκινά μόνο αν δεν βρισκόμαστε ήδη μέσα σε ένα — τα
-      // ενδιάμεσα keydown/keyup ενός παρατεταμένου πατήματος (που το πεντάλ
-      // στέλνει σαν επαναλαμβανόμενα ζευγάρια) αγνοούνται ως συνέχεια του ίδιου.
-      if (pedalReleaseTimerRef.current) {
-        clearTimeout(pedalReleaseTimerRef.current);
-        pedalReleaseTimerRef.current = null;
+      if (pedalBurstEndTimerRef.current) {
+        clearTimeout(pedalBurstEndTimerRef.current);
+        pedalBurstEndTimerRef.current = null;
       }
-      if (!pedalBurstActiveRef.current) {
-        pedalBurstActiveRef.current = true;
-        pedalHoldFiredRef.current = false;
-        pedalHoldTimerRef.current = setTimeout(() => {
-          if (pedalBurstActiveRef.current && !pedalHoldFiredRef.current) {
-            pedalHoldFiredRef.current = true;
-            stepPedalHighlight("backward");
-          }
-        }, HOLD_THRESHOLD_MS);
-      }
+      pedalBurstActiveRef.current = true;
     } else if (e.key === "Enter") {
       e.preventDefault();
     }
@@ -295,21 +329,12 @@ export default function PanigyriApp() {
   const handlePedalCatcherKeyUp = (e) => {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      // Δεν ξέρουμε αμέσως αν αυτό ήταν το πραγματικό τέλος του πατήματος ή
-      // απλά ένα ενδιάμεσο keyup μέσα στη ριπή — περιμένουμε λίγο σιωπή.
-      if (pedalReleaseTimerRef.current) clearTimeout(pedalReleaseTimerRef.current);
-      pedalReleaseTimerRef.current = setTimeout(() => {
+      if (pedalBurstEndTimerRef.current) clearTimeout(pedalBurstEndTimerRef.current);
+      pedalBurstEndTimerRef.current = setTimeout(() => {
         pedalBurstActiveRef.current = false;
-        if (pedalHoldTimerRef.current) {
-          clearTimeout(pedalHoldTimerRef.current);
-          pedalHoldTimerRef.current = null;
-        }
-        if (!pedalHoldFiredRef.current) {
-          stepPedalHighlight("forward");
-        }
-        pedalHoldFiredRef.current = false;
-        pedalReleaseTimerRef.current = null;
-      }, RELEASE_GAP_MS);
+        pedalBurstEndTimerRef.current = null;
+        handlePedalTapComplete();
+      }, BURST_GAP_MS);
     } else if (e.key === "Enter") {
       e.preventDefault();
       activatePedalHighlight();
@@ -478,6 +503,8 @@ export default function PanigyriApp() {
                           tabIndex={0}
                           role="button"
                           data-pt-focusable="true"
+                          data-pt-song-id={s.id}
+                          data-pt-role="title"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") handleMarkButtonClick(e, s);
                           }}
@@ -495,6 +522,8 @@ export default function PanigyriApp() {
                             className="song-action-btn lyrics-btn"
                             onClick={() => openLyricsForSong(s, g.songs)}
                             data-pt-focusable="true"
+                            data-pt-song-id={s.id}
+                            data-pt-role="lyrics"
                           >
                             <BookOpenText size={18} />
                             Στίχοι
@@ -534,6 +563,8 @@ export default function PanigyriApp() {
                       tabIndex={0}
                       role="button"
                       data-pt-focusable="true"
+                      data-pt-song-id={s.id}
+                      data-pt-role="title"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleMarkButtonClick(e, s);
                       }}
@@ -558,6 +589,8 @@ export default function PanigyriApp() {
                         className="song-action-btn lyrics-btn"
                         onClick={() => openLyricsForSong(s, searchResults)}
                         data-pt-focusable="true"
+                        data-pt-song-id={s.id}
+                        data-pt-role="lyrics"
                       >
                         <BookOpenText size={18} />
                         Στίχοι
