@@ -179,6 +179,11 @@ export default function PanigyriApp() {
   const closeLyricsModal = (highlightSongId) => {
     setLyricsSnapshot(null);
     setLyricsStartIndex(0);
+    if (pedalModeOn) {
+      // Το κρυφό πεδίο-παγίδα της λίστας είχε χάσει την εστίαση όσο ήταν
+      // ανοιχτό το modal (είχε το δικό του) — την επαναφέρουμε.
+      focusPedalCatcher();
+    }
     if (highlightSongId != null) {
       // Περιμένουμε το επόμενο render (η λίστα τραγουδιών) πριν ψάξουμε το DOM.
       requestAnimationFrame(() => {
@@ -190,6 +195,7 @@ export default function PanigyriApp() {
             pedalDirectionRef.current = "forward";
             setPedalHighlight(el);
           }
+          if (pedalModeOn) focusPedalCatcher();
         });
       });
     }
