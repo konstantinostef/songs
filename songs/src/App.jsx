@@ -185,11 +185,27 @@ export default function PanigyriApp() {
   // στοιχείο (τίτλος τραγουδιού ή κουμπί "Στίχοι"), με auto-scroll.
   // Δεξί πεντάλ (Enter) -> ενεργοποιεί (κάνει "κλικ") ό,τι είναι επισημασμένο,
   // μέσω της φυσικής συμπεριφοράς εστίασης του browser (native focus + click).
-  const moveFocusToNextPedalTarget = () => {
+  //
+  // Το πεντάλ δεν έχει ξεχωριστό κουμπί "πίσω", οπότε το προσομοιώνουμε με
+  // τη διάρκεια πατήματος του Space: σύντομο πάτημα = μπροστά, παρατεταμένο
+  // κράτημα (>~450ms) = πίσω.
+  const HOLD_THRESHOLD_MS = 450;
+  const spaceDownAtRef = React.useRef(null);
+  const spaceHeldLongRef = React.useRef(false);
+
+  const stepPedalFocus = (direction) => {
     const focusables = Array.from(document.querySelectorAll('[data-pt-focusable="true"]'));
     if (focusables.length === 0) return;
     const currentIndex = focusables.indexOf(document.activeElement);
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % focusables.length;
+    let nextIndex;
+    if (currentIndex === -1) {
+      nextIndex = direction === "forward" ? 0 : focusables.length - 1;
+    } else {
+      nextIndex =
+        direction === "forward"
+          ? (currentIndex + 1) % focusables.length
+          : (currentIndex - 1 + focusables.length) % focusables.length;
+    }
     const next = focusables[nextIndex];
     next.focus();
     next.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -198,18 +214,38 @@ export default function PanigyriApp() {
   useEffect(() => {
     // Απενεργοποιημένο όσο είναι ανοιχτό το lyrics modal (έχει δικό του
     // focus/scroll context) ή όσο πληκτρολογεί κανείς σε πεδίο κειμένου.
+    const isSpaceKey = (e) => e.key === " " || e.code === "Space";
+
     const handlePedalKeyDown = (e) => {
       if (lyricsSnapshot) return;
       const tag = e.target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (!isSpaceKey(e)) return;
 
-      if (e.key === " " || e.code === "Space") {
-        e.preventDefault();
-        moveFocusToNextPedalTarget();
-      }
+      e.preventDefault();
+      if (e.repeat) return; // αγνοούμε τυχόν auto-repeat, μας νοιάζει μόνο η αρχική στιγμή
+      spaceDownAtRef.current = Date.now();
+      spaceHeldLongRef.current = false;
     };
+
+    const handlePedalKeyUp = (e) => {
+      if (lyricsSnapshot) return;
+      const tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (!isSpaceKey(e)) return;
+      if (spaceDownAtRef.current == null) return;
+
+      const heldMs = Date.now() - spaceDownAtRef.current;
+      spaceDownAtRef.current = null;
+      stepPedalFocus(heldMs >= HOLD_THRESHOLD_MS ? "backward" : "forward");
+    };
+
     window.addEventListener("keydown", handlePedalKeyDown);
-    return () => window.removeEventListener("keydown", handlePedalKeyDown);
+    window.addEventListener("keyup", handlePedalKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handlePedalKeyDown);
+      window.removeEventListener("keyup", handlePedalKeyUp);
+    };
   }, [lyricsSnapshot]);
 
   return (

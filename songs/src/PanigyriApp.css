@@ -279,6 +279,20 @@
   background: rgba(240, 180, 41, 0.14);
 }
 
+/* Επισήμανση όταν το στοιχείο έχει εστίαση (π.χ. μέσω page turner πεντάλ) */
+.song-row-info:focus-visible,
+.song-row-info:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+  background: rgba(240, 180, 41, 0.14);
+}
+
+.song-action-btn.lyrics-btn:focus-visible,
+.song-action-btn.lyrics-btn:focus {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
 .song-row .title {
   font-size: 14px;
   line-height: 1.3;
@@ -650,4 +664,15 @@
   color: var(--muted);
   font-size: 12.5px;
   font-style: italic;
+}
+
+/* Επισήμανση εστίασης στα κουμπιά του modal (π.χ. μέσω page turner πεντάλ) */
+.lyrics-close-btn:focus-visible,
+.lyrics-close-btn:focus,
+.lyrics-next-btn:focus-visible,
+.lyrics-next-btn:focus,
+.lyrics-nav-btn:focus-visible,
+.lyrics-nav-btn:focus {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
 }

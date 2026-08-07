@@ -183,7 +183,7 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
           {isLast ? (
             <div className="lyrics-end-note">Τέλος ομάδας</div>
           ) : (
-            <button className="lyrics-next-btn" onClick={handleNext}>
+            <button className="lyrics-next-btn" onClick={handleNext} data-pt-focusable="true">
               <span className="lyrics-nav-text">
                 <span className="lyrics-nav-label">Επόμενο</span>
                 <span className="lyrics-nav-title">{nextSong.title}</span>
@@ -196,6 +196,7 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
             className="lyrics-nav-btn lyrics-prev-btn"
             onClick={handlePrevious}
             disabled={!previousSong}
+            data-pt-focusable="true"
           >
             <ChevronLeft size={18} />
             <span className="lyrics-nav-text">
@@ -208,6 +209,7 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
             className="lyrics-nav-btn lyrics-skip-btn"
             onClick={handleSkipNext}
             disabled={!nextNextSong}
+            data-pt-focusable="true"
           >
             <span className="lyrics-nav-text">
               <span className="lyrics-nav-label">Μεθεπόμενο</span>
