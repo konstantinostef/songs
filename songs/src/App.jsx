@@ -27,6 +27,7 @@ export default function PanigyriApp() {
     () => localStorage.getItem("lyrics_sheet_gid") || ""
   );
   const [showSettings, setShowSettings] = useState(false);
+  const [pedalModeOn, setPedalModeOn] = useState(false);
 
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -181,80 +182,137 @@ export default function PanigyriApp() {
   };
 
   // --- Πλοήγηση με page turner πεντάλ (mode Space bar / Enter) ---
-  // Αριστερό πεντάλ (Space) -> προχωράει την επισήμανση στο επόμενο ορατό
-  // στοιχείο (τίτλος τραγουδιού ή κουμπί "Στίχοι"), με auto-scroll.
-  // Δεξί πεντάλ (Enter) -> ενεργοποιεί (κάνει "κλικ") ό,τι είναι επισημασμένο,
-  // μέσω της φυσικής συμπεριφοράς εστίασης του browser (native focus + click).
   //
-  // Το πεντάλ δεν έχει ξεχωριστό κουμπί "πίσω", οπότε το προσομοιώνουμε με
-  // τη διάρκεια πατήματος του Space: σύντομο πάτημα = μπροστά, παρατεταμένο
-  // κράτημα (>~450ms) = πίσω.
+  // ΣΗΜΑΝΤΙΚΟ: σε tablet browsers (κυρίως iOS/iPadOS Safari), τα πλήκτρα από
+  // μια Bluetooth συσκευή φτάνουν στο JavaScript ΜΟΝΟ όταν η εστίαση είναι
+  // πάνω σε πραγματικό πεδίο κειμένου (input/textarea). Γι' αυτό διατηρούμε
+  // ένα αόρατο <input> πάντα εστιασμένο όσο είναι ενεργή η λειτουργία, και
+  // εκεί «πιάνουμε» τα Space/Enter. Η επισήμανση γίνεται με CSS κλάση (όχι
+  // πραγματικό DOM focus) και η ενεργοποίηση καλεί απευθείας το click() του
+  // στοιχείου.
+  //
+  // Αριστερό πεντάλ (Space): σύντομο πάτημα -> επόμενο στοιχείο, παρατεταμένο
+  // κράτημα (>~450ms) -> προηγούμενο στοιχείο.
+  // Δεξί πεντάλ (Enter): ενεργοποιεί (κάνει «κλικ») το επισημασμένο στοιχείο.
   const HOLD_THRESHOLD_MS = 450;
-  const spaceDownAtRef = React.useRef(null);
-  const spaceHeldLongRef = React.useRef(false);
+  const pedalCatcherRef = React.useRef(null);
+  const pedalHighlightElRef = React.useRef(null);
+  const pedalDownAtRef = React.useRef(null);
 
-  const stepPedalFocus = (direction) => {
-    const focusables = Array.from(document.querySelectorAll('[data-pt-focusable="true"]'));
-    if (focusables.length === 0) return;
-    const currentIndex = focusables.indexOf(document.activeElement);
+  const getPedalFocusables = () =>
+    Array.from(document.querySelectorAll('[data-pt-focusable="true"]'));
+
+  const setPedalHighlight = (el) => {
+    if (pedalHighlightElRef.current) {
+      pedalHighlightElRef.current.classList.remove("pt-active");
+    }
+    pedalHighlightElRef.current = el || null;
+    if (el) {
+      el.classList.add("pt-active");
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  const stepPedalHighlight = (direction) => {
+    const list = getPedalFocusables();
+    if (list.length === 0) return;
+    const currentIndex = pedalHighlightElRef.current
+      ? list.indexOf(pedalHighlightElRef.current)
+      : -1;
     let nextIndex;
     if (currentIndex === -1) {
-      nextIndex = direction === "forward" ? 0 : focusables.length - 1;
+      nextIndex = direction === "forward" ? 0 : list.length - 1;
     } else {
       nextIndex =
         direction === "forward"
-          ? (currentIndex + 1) % focusables.length
-          : (currentIndex - 1 + focusables.length) % focusables.length;
+          ? (currentIndex + 1) % list.length
+          : (currentIndex - 1 + list.length) % list.length;
     }
-    const next = focusables[nextIndex];
-    next.focus();
-    next.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPedalHighlight(list[nextIndex]);
   };
 
+  const activatePedalHighlight = () => {
+    if (pedalHighlightElRef.current) {
+      pedalHighlightElRef.current.click();
+    }
+  };
+
+  const focusPedalCatcher = () => {
+    if (pedalCatcherRef.current) {
+      pedalCatcherRef.current.focus({ preventScroll: true });
+    }
+  };
+
+  // Κρατάμε το κρυφό πεδίο εστιασμένο όσο η λειτουργία είναι ενεργή.
   useEffect(() => {
-    // Απενεργοποιημένο όσο είναι ανοιχτό το lyrics modal (έχει δικό του
-    // focus/scroll context) ή όσο πληκτρολογεί κανείς σε πεδίο κειμένου.
-    const isSpaceKey = (e) => e.key === " " || e.code === "Space";
+    if (!pedalModeOn) {
+      setPedalHighlight(null);
+      return;
+    }
+    focusPedalCatcher();
+  }, [pedalModeOn]);
 
-    const handlePedalKeyDown = (e) => {
-      if (lyricsSnapshot) return;
-      const tag = e.target.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (!isSpaceKey(e)) return;
+  const handlePedalCatcherBlur = (e) => {
+    if (!pedalModeOn) return;
+    // Άσε ελεύθερο το πεδίο αναζήτησης (ή άλλο πεδίο κειμένου) να κρατήσει
+    // κανονικά το focus του — μην κλέβεις εστίαση ενώ κάποιος πληκτρολογεί.
+    const next = e.relatedTarget;
+    if (next && (next.tagName === "INPUT" || next.tagName === "TEXTAREA") && next !== pedalCatcherRef.current) {
+      return;
+    }
+    requestAnimationFrame(focusPedalCatcher);
+  };
 
+  const handlePedalCatcherKeyDown = (e) => {
+    if (e.key === " " || e.code === "Space") {
       e.preventDefault();
-      if (e.repeat) return; // αγνοούμε τυχόν auto-repeat, μας νοιάζει μόνο η αρχική στιγμή
-      spaceDownAtRef.current = Date.now();
-      spaceHeldLongRef.current = false;
-    };
+      if (e.repeat) return;
+      pedalDownAtRef.current = Date.now();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+    }
+  };
 
-    const handlePedalKeyUp = (e) => {
-      if (lyricsSnapshot) return;
-      const tag = e.target.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (!isSpaceKey(e)) return;
-      if (spaceDownAtRef.current == null) return;
-
-      const heldMs = Date.now() - spaceDownAtRef.current;
-      spaceDownAtRef.current = null;
-      stepPedalFocus(heldMs >= HOLD_THRESHOLD_MS ? "backward" : "forward");
-    };
-
-    window.addEventListener("keydown", handlePedalKeyDown);
-    window.addEventListener("keyup", handlePedalKeyUp);
-    return () => {
-      window.removeEventListener("keydown", handlePedalKeyDown);
-      window.removeEventListener("keyup", handlePedalKeyUp);
-    };
-  }, [lyricsSnapshot]);
+  const handlePedalCatcherKeyUp = (e) => {
+    if (e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      if (pedalDownAtRef.current == null) return;
+      const heldMs = Date.now() - pedalDownAtRef.current;
+      pedalDownAtRef.current = null;
+      stepPedalHighlight(heldMs >= HOLD_THRESHOLD_MS ? "backward" : "forward");
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      activatePedalHighlight();
+    }
+  };
 
   return (
     <div className="panigyri-app">
       <Garland />
 
+      {/* Αόρατο πεδίο που "πιάνει" τα πλήκτρα Space/Enter από το page turner.
+          Παραμένει εστιασμένο όσο το pedalModeOn === true. */}
+      <input
+        ref={pedalCatcherRef}
+        className="pt-key-catcher"
+        aria-hidden="true"
+        tabIndex={-1}
+        readOnly
+        value=""
+        onKeyDown={handlePedalCatcherKeyDown}
+        onKeyUp={handlePedalCatcherKeyUp}
+        onBlur={handlePedalCatcherBlur}
+      />
+
       <div className="header">
         <h1>Λίστα Τραγουδιών</h1>
         <p>Πανηγύρι / Συναυλία — Live Manager</p>
+        <button
+          className={`pedal-mode-toggle${pedalModeOn ? " active" : ""}`}
+          onClick={() => setPedalModeOn((v) => !v)}
+        >
+          {pedalModeOn ? "📟 Page Turner: ΟΝ" : "📟 Page Turner: OFF"}
+        </button>
       </div>
 
       <div className="sync-card">
