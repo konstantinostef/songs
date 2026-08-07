@@ -33,6 +33,56 @@
   display: block; 
 }
 
+/* Αόρατο πεδίο που "πιάνει" τα πλήκτρα του page turner. Παραμένει στη σελίδα
+   αλλά εκτός οθόνης, χωρίς να επηρεάζει το layout ή να εμφανίζει καθόλου
+   πληκτρολόγιο στην οθόνη αφής (readOnly). */
+.pt-key-catcher {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+  caret-color: transparent;
+}
+
+.pedal-mode-toggle {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.pedal-mode-toggle.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #171833;
+  font-weight: 700;
+}
+
+/* Επισήμανση του στοιχείου στο οποίο "βρίσκεται" αυτή τη στιγμή το page
+   turner — εφαρμόζεται μέσω JS (classList), όχι μέσω πραγματικού DOM focus,
+   γιατί σε πολλά tablet browsers τα πλήκτρα Bluetooth δεν ενεργοποιούν το
+   :focus πάνω σε κουμπιά/divs αξιόπιστα. */
+.song-row-info.pt-active {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+  background: rgba(240, 180, 41, 0.14);
+  border-radius: 8px;
+}
+
+.song-action-btn.lyrics-btn.pt-active {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
 .bulb { 
   filter: drop-shadow(0 0 3px currentColor); 
   animation: glow 2.4s ease-in-out infinite; 
@@ -277,20 +327,6 @@
 
 .song-row-info:active {
   background: rgba(240, 180, 41, 0.14);
-}
-
-/* Επισήμανση όταν το στοιχείο έχει εστίαση (π.χ. μέσω page turner πεντάλ) */
-.song-row-info:focus-visible,
-.song-row-info:focus {
-  outline: 2px solid var(--gold);
-  outline-offset: -2px;
-  background: rgba(240, 180, 41, 0.14);
-}
-
-.song-action-btn.lyrics-btn:focus-visible,
-.song-action-btn.lyrics-btn:focus {
-  outline: 3px solid var(--gold);
-  outline-offset: 2px;
 }
 
 .song-row .title {
@@ -666,13 +702,10 @@
   font-style: italic;
 }
 
-/* Επισήμανση εστίασης στα κουμπιά του modal (π.χ. μέσω page turner πεντάλ) */
-.lyrics-close-btn:focus-visible,
-.lyrics-close-btn:focus,
-.lyrics-next-btn:focus-visible,
-.lyrics-next-btn:focus,
-.lyrics-nav-btn:focus-visible,
-.lyrics-nav-btn:focus {
+/* Επισήμανση στα κουμπιά του modal, μέσω κλάσης (page turner πεντάλ) */
+.lyrics-close-btn.pt-active,
+.lyrics-next-btn.pt-active,
+.lyrics-nav-btn.pt-active {
   outline: 3px solid var(--gold);
   outline-offset: 2px;
 }

@@ -92,45 +92,119 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
   };
 
   // --- Πλοήγηση με page turner πεντάλ μέσα στο modal (mode Space / Enter) ---
-  // Προεπιλογή: εστίαση στο "Επόμενο" (ή "Κλείσιμο" αν είναι το τελευταίο),
-  // ώστε ένα μόνο Enter να προχωράει στο επόμενο τραγούδι. Το Space κυκλώνει
-  // στα υπόλοιπα κουμπιά του footer (Κλείσιμο / Προηγούμενο / Μεθεπόμενο).
+  //
+  // Ίδια λογική με τη λίστα τραγουδιών: αντί για πραγματικό DOM focus (που
+  // δεν φτάνει αξιόπιστα τα πλήκτρα Bluetooth σε πολλά tablet browsers),
+  // χρησιμοποιούμε ένα αόρατο πεδίο-παγίδα + CSS κλάση για την επισήμανση.
+  //
+  // Προεπιλογή σε κάθε άνοιγμα/αλλαγή τραγουδιού: επισήμανση στο "Επόμενο"
+  // (ή "Κλείσιμο" αν είναι το τελευταίο), ώστε ένα μόνο Enter να προχωράει.
+  // Space κυκλώνει: Κλείσιμο -> Επόμενο -> Προηγούμενο -> Μεθεπόμενο.
+  const HOLD_THRESHOLD_MS = 450;
+  const pedalCatcherRef = React.useRef(null);
+  const pedalHighlightElRef = React.useRef(null);
+  const pedalDownAtRef = React.useRef(null);
+
+  const getModalFocusables = () => {
+    const modalEl = document.querySelector(".lyrics-modal");
+    if (!modalEl) return [];
+    return Array.from(modalEl.querySelectorAll('[data-pt-focusable="true"]:not([disabled])'));
+  };
+
+  const setPedalHighlight = (el) => {
+    if (pedalHighlightElRef.current) {
+      pedalHighlightElRef.current.classList.remove("pt-active");
+    }
+    pedalHighlightElRef.current = el || null;
+    if (el) el.classList.add("pt-active");
+  };
+
+  const stepPedalHighlight = (direction) => {
+    const list = getModalFocusables();
+    if (list.length === 0) return;
+    const currentIndex = pedalHighlightElRef.current
+      ? list.indexOf(pedalHighlightElRef.current)
+      : -1;
+    let nextIndex;
+    if (currentIndex === -1) {
+      nextIndex = direction === "forward" ? 0 : list.length - 1;
+    } else {
+      nextIndex =
+        direction === "forward"
+          ? (currentIndex + 1) % list.length
+          : (currentIndex - 1 + list.length) % list.length;
+    }
+    setPedalHighlight(list[nextIndex]);
+  };
+
+  const activatePedalHighlight = () => {
+    if (pedalHighlightElRef.current) pedalHighlightElRef.current.click();
+  };
+
+  const focusPedalCatcher = () => {
+    if (pedalCatcherRef.current) pedalCatcherRef.current.focus({ preventScroll: true });
+  };
+
+  // Το πεδίο-παγίδα παραμένει πάντα εστιασμένο όσο το modal είναι ανοιχτό.
   useEffect(() => {
-    const focusDefault = () => {
-      const modalEl = document.querySelector(".lyrics-modal");
-      if (!modalEl) return;
-      const target = modalEl.querySelector(
-        isLast ? ".lyrics-close-btn" : ".lyrics-next-btn"
+    focusPedalCatcher();
+  }, []);
+
+  // Προεπιλεγμένη επισήμανση: "Επόμενο" (ή "Κλείσιμο" αν είναι το τελευταίο).
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const list = getModalFocusables();
+      const target = list.find((el) =>
+        el.classList.contains(isLast ? "lyrics-close-btn" : "lyrics-next-btn")
       );
-      if (target) target.focus();
-    };
-    const id = requestAnimationFrame(focusDefault);
+      setPedalHighlight(target || list[0] || null);
+    });
     return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, isLast]);
 
-  useEffect(() => {
-    const handlePedalKeyDown = (e) => {
-      if (e.key === " " || e.code === "Space") {
-        e.preventDefault();
-        const modalEl = document.querySelector(".lyrics-modal");
-        if (!modalEl) return;
-        const focusables = Array.from(
-          modalEl.querySelectorAll('[data-pt-focusable="true"]:not([disabled])')
-        );
-        if (focusables.length === 0) return;
-        const currentIndex = focusables.indexOf(document.activeElement);
-        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % focusables.length;
-        focusables[nextIndex].focus();
-      }
-    };
-    window.addEventListener("keydown", handlePedalKeyDown);
-    return () => window.removeEventListener("keydown", handlePedalKeyDown);
-  }, []);
+  const handlePedalCatcherBlur = () => {
+    requestAnimationFrame(focusPedalCatcher);
+  };
+
+  const handlePedalCatcherKeyDown = (e) => {
+    if (e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      if (e.repeat) return;
+      pedalDownAtRef.current = Date.now();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+    }
+  };
+
+  const handlePedalCatcherKeyUp = (e) => {
+    if (e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      if (pedalDownAtRef.current == null) return;
+      const heldMs = Date.now() - pedalDownAtRef.current;
+      pedalDownAtRef.current = null;
+      stepPedalHighlight(heldMs >= HOLD_THRESHOLD_MS ? "backward" : "forward");
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      activatePedalHighlight();
+    }
+  };
 
   if (!current) return null;
 
   return (
     <div className="lyrics-backdrop" onClick={handleClose}>
+      <input
+        ref={pedalCatcherRef}
+        className="pt-key-catcher"
+        aria-hidden="true"
+        tabIndex={-1}
+        readOnly
+        value=""
+        onKeyDown={handlePedalCatcherKeyDown}
+        onKeyUp={handlePedalCatcherKeyUp}
+        onBlur={handlePedalCatcherBlur}
+      />
       <div className="lyrics-modal" onClick={(e) => e.stopPropagation()}>
         <div className="lyrics-header">
           <div>
