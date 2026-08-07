@@ -180,6 +180,38 @@ export default function PanigyriApp() {
     setLyricsStartIndex(0);
   };
 
+  // --- Πλοήγηση με page turner πεντάλ (mode Space bar / Enter) ---
+  // Αριστερό πεντάλ (Space) -> προχωράει την επισήμανση στο επόμενο ορατό
+  // στοιχείο (τίτλος τραγουδιού ή κουμπί "Στίχοι"), με auto-scroll.
+  // Δεξί πεντάλ (Enter) -> ενεργοποιεί (κάνει "κλικ") ό,τι είναι επισημασμένο,
+  // μέσω της φυσικής συμπεριφοράς εστίασης του browser (native focus + click).
+  const moveFocusToNextPedalTarget = () => {
+    const focusables = Array.from(document.querySelectorAll('[data-pt-focusable="true"]'));
+    if (focusables.length === 0) return;
+    const currentIndex = focusables.indexOf(document.activeElement);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % focusables.length;
+    const next = focusables[nextIndex];
+    next.focus();
+    next.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  useEffect(() => {
+    // Απενεργοποιημένο όσο είναι ανοιχτό το lyrics modal (έχει δικό του
+    // focus/scroll context) ή όσο πληκτρολογεί κανείς σε πεδίο κειμένου.
+    const handlePedalKeyDown = (e) => {
+      if (lyricsSnapshot) return;
+      const tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        moveFocusToNextPedalTarget();
+      }
+    };
+    window.addEventListener("keydown", handlePedalKeyDown);
+    return () => window.removeEventListener("keydown", handlePedalKeyDown);
+  }, [lyricsSnapshot]);
+
   return (
     <div className="panigyri-app">
       <Garland />
@@ -316,7 +348,16 @@ export default function PanigyriApp() {
                     )}
                     {g.songs.map((s) => (
                       <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id} id={`song-${s.id}`}>
-                        <div className="song-row-info" onClick={(e) => handleMarkButtonClick(e, s)}>
+                        <div
+                          className="song-row-info"
+                          onClick={(e) => handleMarkButtonClick(e, s)}
+                          tabIndex={0}
+                          role="button"
+                          data-pt-focusable="true"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleMarkButtonClick(e, s);
+                          }}
+                        >
                           <span className="title">
                             {s.sung && <CheckCircle2 size={14} className="sung-check" />}
                             {s.title}
@@ -329,6 +370,7 @@ export default function PanigyriApp() {
                           <button
                             className="song-action-btn lyrics-btn"
                             onClick={() => openLyricsForSong(s, g.songs)}
+                            data-pt-focusable="true"
                           >
                             <BookOpenText size={18} />
                             Στίχοι
@@ -362,7 +404,16 @@ export default function PanigyriApp() {
               <div className="group-card">
                 {searchResults.map((s) => (
                   <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
-                    <div className="song-row-info" onClick={(e) => handleMarkButtonClick(e, s)}>
+                    <div
+                      className="song-row-info"
+                      onClick={(e) => handleMarkButtonClick(e, s)}
+                      tabIndex={0}
+                      role="button"
+                      data-pt-focusable="true"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleMarkButtonClick(e, s);
+                      }}
+                    >
                       <span className="title">
                         {s.sung && <CheckCircle2 size={14} className="sung-check" />}
                         {s.title}
@@ -382,6 +433,7 @@ export default function PanigyriApp() {
                       <button
                         className="song-action-btn lyrics-btn"
                         onClick={() => openLyricsForSong(s, searchResults)}
+                        data-pt-focusable="true"
                       >
                         <BookOpenText size={18} />
                         Στίχοι
