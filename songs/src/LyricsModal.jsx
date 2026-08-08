@@ -152,6 +152,15 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
     if (pedalCatcherRef.current) pedalCatcherRef.current.focus({ preventScroll: true });
   };
 
+  // Όταν ο χρήστης πατάει με το χέρι ένα κουμπί του modal, η επισήμανση του
+  // page turner μεταφέρεται εκεί.
+  const syncPedalHighlightFromClick = (el) => {
+    if (!el) return;
+    pedalDirectionRef.current = "forward";
+    setPedalHighlight(el);
+    requestAnimationFrame(focusPedalCatcher);
+  };
+
   const clearPedalTimers = () => {
     if (pedalBurstEndTimerRef.current) {
       clearTimeout(pedalBurstEndTimerRef.current);
@@ -289,14 +298,28 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
         </div>
 
         <div className="lyrics-footer lyrics-footer-grid">
-          <button className="lyrics-close-btn" onClick={handleClose} data-pt-focusable="true">
+          <button
+            className="lyrics-close-btn"
+            onClick={(e) => {
+              syncPedalHighlightFromClick(e.currentTarget);
+              handleClose();
+            }}
+            data-pt-focusable="true"
+          >
             <X size={16} /> Κλείσιμο
           </button>
 
           {isLast ? (
             <div className="lyrics-end-note">Τέλος ομάδας</div>
           ) : (
-            <button className="lyrics-next-btn" onClick={handleNext} data-pt-focusable="true">
+            <button
+              className="lyrics-next-btn"
+              onClick={(e) => {
+                syncPedalHighlightFromClick(e.currentTarget);
+                handleNext();
+              }}
+              data-pt-focusable="true"
+            >
               <span className="lyrics-nav-text">
                 <span className="lyrics-nav-label">Επόμενο</span>
                 <span className="lyrics-nav-title">{nextSong.title}</span>
@@ -307,7 +330,10 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
 
           <button
             className="lyrics-nav-btn lyrics-prev-btn"
-            onClick={handlePrevious}
+            onClick={(e) => {
+              syncPedalHighlightFromClick(e.currentTarget);
+              handlePrevious();
+            }}
             disabled={!previousSong}
             data-pt-focusable="true"
           >
@@ -320,7 +346,10 @@ export default function LyricsModal({ songs, startIndex, sheetId, lyricsGid, onM
 
           <button
             className="lyrics-nav-btn lyrics-skip-btn"
-            onClick={handleSkipNext}
+            onClick={(e) => {
+              syncPedalHighlightFromClick(e.currentTarget);
+              handleSkipNext();
+            }}
             disabled={!nextNextSong}
             data-pt-focusable="true"
           >

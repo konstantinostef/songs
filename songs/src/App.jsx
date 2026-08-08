@@ -237,6 +237,16 @@ export default function PanigyriApp() {
     }
   };
 
+  // Όταν ο χρήστης πατάει με το χέρι έναν τίτλο ή το κουμπί "Στίχοι", η
+  // επισήμανση του page turner μεταφέρεται εκεί, ώστε το επόμενο πάτημα
+  // πεντάλ να συνεχίσει λογικά από εκείνο το σημείο.
+  const syncPedalHighlightFromClick = (el) => {
+    if (!pedalModeOn || !el) return;
+    pedalDirectionRef.current = "forward";
+    setPedalHighlight(el);
+    requestAnimationFrame(focusPedalCatcher);
+  };
+
   const stepPedalHighlight = (direction) => {
     const list = getPedalFocusables();
     if (list.length === 0) return;
@@ -505,7 +515,10 @@ export default function PanigyriApp() {
                       <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id} id={`song-${s.id}`}>
                         <div
                           className="song-row-info"
-                          onClick={(e) => handleMarkButtonClick(e, s)}
+                          onClick={(e) => {
+                            syncPedalHighlightFromClick(e.currentTarget);
+                            handleMarkButtonClick(e, s);
+                          }}
                           tabIndex={0}
                           role="button"
                           data-pt-focusable="true"
@@ -526,7 +539,10 @@ export default function PanigyriApp() {
                         <div className="song-row-actions">
                           <button
                             className="song-action-btn lyrics-btn"
-                            onClick={() => openLyricsForSong(s, g.songs)}
+                            onClick={(e) => {
+                              syncPedalHighlightFromClick(e.currentTarget);
+                              openLyricsForSong(s, g.songs);
+                            }}
                             data-pt-focusable="true"
                             data-pt-song-id={s.id}
                             data-pt-role="lyrics"
@@ -565,7 +581,10 @@ export default function PanigyriApp() {
                   <div className={`song-row${s.sung ? " is-sung" : ""}`} key={s.id}>
                     <div
                       className="song-row-info"
-                      onClick={(e) => handleMarkButtonClick(e, s)}
+                      onClick={(e) => {
+                        syncPedalHighlightFromClick(e.currentTarget);
+                        handleMarkButtonClick(e, s);
+                      }}
                       tabIndex={0}
                       role="button"
                       data-pt-focusable="true"
@@ -593,7 +612,10 @@ export default function PanigyriApp() {
                     <div className="song-row-actions">
                       <button
                         className="song-action-btn lyrics-btn"
-                        onClick={() => openLyricsForSong(s, searchResults)}
+                        onClick={(e) => {
+                          syncPedalHighlightFromClick(e.currentTarget);
+                          openLyricsForSong(s, searchResults);
+                        }}
                         data-pt-focusable="true"
                         data-pt-song-id={s.id}
                         data-pt-role="lyrics"
